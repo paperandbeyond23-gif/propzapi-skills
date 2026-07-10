@@ -1,0 +1,30 @@
+{
+  "name": "propzapi-skills",
+  "version": "1.0.0",
+  "description": "Agent skills for live sports odds and player props via propzapi.com",
+  "homepage": "https://github.com/paperandbeyond23-gif/propzapi-skills",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/paperandbeyond23-gif/propzapi-skills.git"
+  },
+  "bugs": {
+    "url": "https://github.com/paperandbeyond23-gif/propzapi-skills/issues"
+  },
+  "author": "propzapi",
+  "license": "MIT-0",
+  "keywords": [
+    "propzapi",
+    "sports-odds",
+    "odds-api",
+    "player-props",
+    "sports-betting",
+    "moneyline",
+    "spreads",
+    "totals",
+    "sportsbook",
+    "agent-skills",
+    "mcp",
+    "llm",
+    "ai-agent"
+  ]
+}
