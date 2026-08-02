@@ -1,20 +1,20 @@
 ---
 name: propzapi-full
-version: 1.0.0
-description: Live sports odds & player props via propzapi.com. Four tools — pull moneyline/spreads/totals odds grouped by sportsbook, player props for upcoming games, fixtures & live scores, and the list of covered books, normalized across books so you don't scrape each one.
+version: 0.2.0
+description: Generate images from HTML/CSS templates and capture webpage screenshots via propzapi.com. Render OG images, social cards, certificates, invoices and charts by filling {{variables}} in a template, snapshot any live URL, and manage your template library — one JSON call, no headless browser to run.
 license: MIT-0
 author: propzapi
 homepage: https://propzapi.com
 repository: https://github.com/paperandbeyond23-gif/propzapi-skills
 tags:
   - propzapi
-  - sports-odds
-  - odds-api
-  - player-props
-  - sports-betting
-  - moneyline
-  - spreads
-  - totals
+  - image-generation
+  - image-api
+  - og-image
+  - social-image
+  - screenshot
+  - html-to-image
+  - templates
   - api
   - mcp
 metadata:
@@ -28,65 +28,68 @@ metadata:
 
 # propzapi-full
 
-Live sports odds and player props via [propzapi.com](https://propzapi.com). Use when the user **explicitly asks** for real sportsbook odds, player props, lines, or fixtures/scores for a game or league — and wants sourced numbers rather than a guess.
+Generate images from templates and capture webpage screenshots via [propzapi.com](https://propzapi.com). Use when the user wants to **produce an image programmatically** — an Open Graph / social share card, a certificate, an invoice, a receipt, a data chart, a banner — or a screenshot of a live page, rather than a hand-drawn or AI-diffused picture.
 
-Odds live behind a dozen different sportsbook sites, each with its own markup and its own idea of a "market." propzapi normalizes moneyline, spreads, totals and player props across books into one JSON shape, so your agent gets a line it can trust in one call.
+Templates are HTML/CSS with `{{variables}}` and Jinja logic (`{% if %}`, `{% for %}`, filters). Fill the variables with one JSON call and get back a rendered PNG/JPEG/WEBP/PDF at a stable URL — no headless browser to run, no fonts to install.
 
 ## When to use this skill
 
-Each tool call spends propzapi credits (1 for a single market, 3 for all game markets, 5 for player props), so this skill activates only when the request is genuinely about live odds — not when a team or league merely comes up in passing.
+Each render spends 1 propzapi credit (image generation and screenshots), so this skill activates when the request is genuinely about producing an image or capturing a page — not when an image merely comes up in passing.
 
 **DO use when the user:**
 
-- Asks for the odds / moneyline / spread / total on a game or league → `get_odds`
-- Asks for player props (points, rebounds, passing yards, etc.) → `get_props`
-- Asks what games are on, live scores, or the schedule → `get_events`
-- Asks which sportsbooks are covered → `get_books`
+- Wants an image built from a template + data (OG image, social card, certificate, invoice, chart) → `generate_image`
+- Wants a screenshot / snapshot of a live URL → `screenshot`
+- Asks what templates are available → `list_templates`
+- Wants to define a new reusable template from HTML/CSS → `create_template`
+- Needs a signed render URL to drop straight into a `<meta og:image>` tag → `embed_url`
 
 **Do NOT use when:**
 
-- A team or league appears incidentally (news, small talk, a fantasy roster)
-- The user wants historical results or season stats — propzapi is live/upcoming odds, not a stats archive
-- The user is asking for betting *advice* or a *pick* — return the numbers, not a recommendation
+- The user wants a photo-realistic or artistic image conjured from a text prompt — that's a diffusion model, not a template renderer
+- The user only wants to talk about a design without producing a file
 
-When intent is ambiguous, confirm the league before calling.
+When intent is ambiguous, confirm whether they want a template render or a page screenshot before calling.
 
 ## Tools
 
-### `get_odds` — game odds grouped by book
-Moneyline, spreads and totals for upcoming games, grouped by sportsbook. Args: `league` (e.g. `NBA`, `NFL`, `MLB`, `NHL`, `EPL`, `MLS`), `sport` (e.g. `basketball`), `market` (`h2h` | `spreads` | `totals` | `player_props`; omit for all game markets), `limit` (1–100, default 25). Costs 1 credit for a single market, 3 for all.
+### `generate_image` — render an image from a template
+Fill a template's `{{variables}}` and render to an image. Args: `template` (a `tpl_...` id or a built-in template name), `modifications` (dict of variable → value fills), `format` (`png` | `jpeg` | `webp` | `pdf`, default `png`), `scale` (multiplier, e.g. `2`), `quality` (1–100 for jpeg/webp). Costs 1 credit, billed on delivery. Returns `{url, width, height, format, bytes}`.
 
-### `get_props` — player props
-Player props for upcoming games — the markets most odds APIs skip. Args: `league`, `sport`, `limit` (1–100, default 25). Costs 5 credits.
+### `screenshot` — snapshot a live webpage
+Capture any URL as an image. Args: `url` (required), `full_page` (bool), `width`, `height`, `format` (`png` | `jpeg` | `webp` | `pdf`, default `png`). Costs 1 credit. Returns `{url, ...}`.
 
-### `get_events` — fixtures & live scores
-Games and live scores, no odds. Args: `league`, `sport`, `status` (`upcoming` | `live` | `final`), `limit` (1–100, default 25). Costs 1 credit.
+### `list_templates` — available templates
+The built-in and custom templates you can render (includes 13 built-ins, with data charts — bar/line/donut). No args. Free. Returns `{count, data:[{template, name, width, height, variables}]}`.
 
-### `get_books` — covered sportsbooks
-The sportsbooks currently normalized. No args. Costs 1 credit.
+### `create_template` — define a reusable template
+Register your own HTML/CSS template. Args: `name`, `html`, `width`, `height`, `variables` (list). Free. Returns the created template with its `tpl_...` id.
+
+### `embed_url` — signed render URL for `<meta og:image>`
+Sign a GET render URL so a template renders on request straight from a page's `<head>`. Args: `template`, `modifications`, `format`. Free to sign.
 
 ## Authentication
 
-Set `PROPZAPI_KEY` to your propzapi key. Keys are `pk_live_...` strings, sent as the `X-API-Key` header.
+Set `PROPZAPI_KEY` to your propzapi key. It's sent as the `X-API-Key` header — the base URL is hardcoded, so the key never reaches any other host.
 
 ```bash
-export PROPZAPI_KEY="pk_live_..."
+export PROPZAPI_KEY="your_key"
 ```
 
-Get a free key (500 free credits, no card required) at <https://propzapi.com/app>.
+Get a free key (50-image trial, no card required) at <https://propzapi.com/app>. You can also mint one with `POST /v1/register` → `{api_key, plan, credits}`.
 
 ## Pricing
 
-Calls are metered by market — the response returns the exact charge in the `X-Credits-Cost` header. Credits never expire.
+Each rendered image or screenshot costs 1 credit — the response returns the exact charge in the `X-Credits-Cost` header, and your balance in `X-Credits-Remaining`. Listing and creating templates is free.
 
-| Plan | Price | Credits / mo |
+| Plan | Price | Images / mo |
 |---|---|---|
-| Free | $0 | 500 |
-| Indie | $19/mo | 25,000 |
-| Pro | $49/mo | 100,000 |
-| Scale | $149/mo | 1,000,000 |
+| Free trial | $0 | 50 |
+| Starter | $29/mo | 1,000 |
+| Growth | $79/mo | 3,500 |
+| Pro | $199/mo | 12,000 |
 
-Manage plans at <https://propzapi.com/pricing>.
+Prefer pay-as-you-go? Credit packs: **$5 / 150 images** and **$15 / 500 images**. Manage plans at <https://propzapi.com/pricing>.
 
 ## Errors
 
@@ -94,19 +97,20 @@ All functions return a Python dict. On success it's the API response; on failure
 
 - `{"error": "auth_required", ...}` — `PROPZAPI_KEY` not set (includes `signup_url`)
 - `{"error": "auth_invalid", ...}` — key rejected; mint a new one at `/app`
-- `{"error": "out_of_credits", ...}` — credit balance exhausted; includes `upgrade_url`
-- `{"error": "not_found", ...}` — no match for that league/event
+- `{"error": "out_of_credits", ...}` — image credits exhausted; includes `upgrade_url`
+- `{"error": "not_found", ...}` — no match for that template id
 - `{"error": "rate_limit_exceeded", ...}` — plan request limit or too many free keys from this IP
-- `{"error": "upstream_unavailable", ...}` — an odds source was briefly unreachable; retry
-- `{"error": "invalid_argument", ...}` — bad `market` or `status` value
+- `{"error": "upstream_unavailable", ...}` — the render backend was briefly unreachable; retry
+- `{"error": "invalid_argument", ...}` — missing `template`/`url` or a bad `format` value
 - `{"error": "network" | "HTTP <code>" | "unexpected", ...}` — transport / other failures
 
 ## API reference
 
 - Docs: <https://propzapi.com/docs>
 - OpenAPI spec: <https://api.propzapi.com/openapi.json>
+- MCP server: <https://api.propzapi.com/mcp> — tools `generate_image`, `screenshot_url`, `list_templates`
 - Pricing: <https://propzapi.com/pricing>
 
 ## Independence
 
-propzapi is an independent developer tool that aggregates publicly listed sportsbook odds. It is not a sportsbook, does not accept wagers, and does not provide betting advice. Odds are informational and may be delayed. Comply with the laws of your jurisdiction and each sportsbook's terms.
+propzapi is an independent developer tool for rendering images from templates and capturing webpage screenshots. Images render from HTML/CSS you supply or select; you are responsible for the content you render and for the rights to any assets, fonts, and pages you screenshot. Comply with the laws of your jurisdiction and the terms of any site you capture.

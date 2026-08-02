@@ -1,6 +1,7 @@
 """
-propzapi-full skill handler — live sports odds & player props over the propzapi
-REST API: get_odds, get_props, get_events, get_books.
+propzapi-full skill handler — generate images from HTML/CSS templates and capture
+webpage screenshots over the propzapi REST API:
+generate_image, screenshot, list_templates, create_template, embed_url.
 
 Pure standard library. API key in PROPZAPI_KEY, sent as the X-API-Key header.
 The base URL is hardcoded, so the key never reaches any other host.
@@ -13,15 +14,15 @@ import urllib.parse
 import urllib.request
 
 API_BASE = "https://api.propzapi.com"  # hardcoded: the API key is never sent to any other host
-USER_AGENT = "propzapi-skills/1.0.0 (+https://github.com/paperandbeyond23-gif/propzapi-skills)"
+USER_AGENT = "propzapi-skills/0.2.0 (+https://github.com/paperandbeyond23-gif/propzapi-skills)"
 TIMEOUT_SECONDS = 60
 
 SIGNUP_URL = "https://propzapi.com/app"
 KEYS_URL = "https://propzapi.com/app"
 PRICING_URL = "https://propzapi.com/pricing"
 
-MARKETS = ("h2h", "spreads", "totals", "player_props")
-STATUSES = ("upcoming", "live", "final")
+FORMATS = ("png", "jpeg", "webp", "pdf")
+SHOT_FORMATS = ("png", "jpeg", "webp", "pdf")
 
 
 def _key():
@@ -29,8 +30,8 @@ def _key():
     if not k:
         raise RuntimeError(
             "PROPZAPI_KEY environment variable is not set. "
-            "Get a free key (500 free credits, no card) at " + SIGNUP_URL + ", "
-            "then export PROPZAPI_KEY=pk_live_..."
+            "Get a free key (50-image trial, no card) at " + SIGNUP_URL + ", "
+            "then export PROPZAPI_KEY=your_key"
         )
     return k
 
@@ -50,7 +51,7 @@ def _http_error(e):
     if e.code == 402:
         return {
             "error": "out_of_credits",
-            "detail": "Out of propzapi credits. Top up a pack or subscribe at " + PRICING_URL + ".",
+            "detail": "Out of propzapi image credits. Top up a pack or subscribe at " + PRICING_URL + ".",
             "upgrade_url": PRICING_URL,
             "http_status": 402,
         }
@@ -63,7 +64,7 @@ def _http_error(e):
     if e.code == 404:
         return {
             "error": "not_found",
-            "detail": "No match for that request. Check the league/event id (e.g. NBA, NFL, MLB, NHL, EPL, MLS).",
+            "detail": "No match for that request. Check the template id (e.g. tpl_... or a built-in name).",
             "http_status": 404,
         }
     if e.code == 429:
@@ -76,27 +77,33 @@ def _http_error(e):
     if e.code in (502, 503):
         return {
             "error": "upstream_unavailable",
-            "detail": "An upstream odds source was briefly unreachable. Retry shortly.",
+            "detail": "The render backend was briefly unreachable. Retry shortly.",
             "http_status": e.code,
         }
     return {"error": "HTTP " + str(e.code), "detail": detail}
 
 
-def _get(path, params=None):
+def _request(method, path, params=None, body=None):
     try:
         qs = ""
         if params:
             clean = {k: v for k, v in params.items() if v is not None and v != ""}
             if clean:
                 qs = "?" + urllib.parse.urlencode(clean)
+        headers = {
+            "X-API-Key": _key(),
+            "User-Agent": USER_AGENT,
+            "Accept": "application/json",
+        }
+        data = None
+        if body is not None:
+            data = json.dumps(body).encode("utf-8")
+            headers["Content-Type"] = "application/json"
         req = urllib.request.Request(
             API_BASE + path + qs,
-            method="GET",
-            headers={
-                "X-API-Key": _key(),
-                "User-Agent": USER_AGENT,
-                "Accept": "application/json",
-            },
+            data=data,
+            method=method,
+            headers=headers,
         )
         with urllib.request.urlopen(req, timeout=TIMEOUT_SECONDS) as resp:
             raw = resp.read().decode("utf-8")
@@ -111,51 +118,106 @@ def _get(path, params=None):
         return {"error": "unexpected", "detail": str(e)}
 
 
-def get_odds(league=None, sport=None, market=None, limit=25):
+def _get(path, params=None):
+    return _request("GET", path, params=params)
+
+
+def _post(path, body):
+    return _request("POST", path, body=body)
+
+
+def generate_image(template, modifications=None, format="png", scale=None, quality=None):
     """
-    Live game odds — moneyline, spreads and totals — grouped by sportsbook.
+    Render an image from a template + variable modifications.
 
-    league: e.g. "NBA", "NFL", "MLB", "NHL", "EPL", "MLS" (optional).
-    sport:  e.g. "basketball", "soccer" (optional; use league or sport).
-    market: "h2h" | "spreads" | "totals" | "player_props" (optional; omit for all game markets).
-    limit:  number of events to return, 1-100 (default 25).
-    Costs 1 credit for a single market, 3 for all game markets.
-    Returns a dict of events with book-grouped odds, or an {"error": ...} dict.
+    template:      template id (e.g. "tpl_..." ) or a built-in template name (required).
+    modifications: dict of {{variable}} -> value fills for the template (optional).
+    format:        "png" | "jpeg" | "webp" | "pdf" (default "png").
+    scale:         output scale multiplier, e.g. 1, 2 (optional).
+    quality:       compression quality 1-100 for jpeg/webp (optional).
+    Costs 1 credit per image, billed on delivery.
+    Returns {"url", "width", "height", "format", "bytes"}, or an {"error": ...} dict.
     """
-    if market is not None and market not in MARKETS:
-        return {"error": "invalid_argument", "detail": "market must be one of " + ", ".join(MARKETS) + "."}
-    return _get("/v1/odds", {"league": league, "sport": sport, "market": market, "limit": limit})
+    if not template:
+        return {"error": "invalid_argument", "detail": "template is required."}
+    if format is not None and format not in FORMATS:
+        return {"error": "invalid_argument", "detail": "format must be one of " + ", ".join(FORMATS) + "."}
+    body = {"template": template, "modifications": modifications or {}, "format": format}
+    if scale is not None:
+        body["scale"] = scale
+    if quality is not None:
+        body["quality"] = quality
+    return _post("/v1/images", body)
 
 
-def get_props(league=None, sport=None, limit=25):
+def screenshot(url, full_page=None, width=None, height=None, format="png"):
     """
-    Player props for upcoming games — the markets most odds APIs skip.
+    Capture a screenshot of a live webpage.
 
-    league: e.g. "NBA", "NFL", "MLB" (optional).
-    sport:  e.g. "basketball" (optional).
-    limit:  number of events to return, 1-100 (default 25).
-    Costs 5 credits. Returns a dict of events with player-prop selections, or an {"error": ...} dict.
+    url:       the page to capture (required).
+    full_page: True to capture the entire scrollable page (optional).
+    width:     viewport width in px (optional).
+    height:    viewport height in px (optional).
+    format:    "png" | "jpeg" | "webp" | "pdf" (default "png").
+    Costs 1 credit. Returns {"url", ...}, or an {"error": ...} dict.
     """
-    return _get("/v1/props", {"league": league, "sport": sport, "limit": limit})
+    if not url:
+        return {"error": "invalid_argument", "detail": "url is required."}
+    if format is not None and format not in SHOT_FORMATS:
+        return {"error": "invalid_argument", "detail": "format must be one of " + ", ".join(SHOT_FORMATS) + "."}
+    body = {"url": url, "format": format}
+    if full_page is not None:
+        body["full_page"] = full_page
+    if width is not None:
+        body["width"] = width
+    if height is not None:
+        body["height"] = height
+    return _post("/v1/screenshot", body)
 
 
-def get_events(league=None, sport=None, status=None, limit=25):
+def list_templates():
     """
-    Fixtures and live scores (no odds).
+    List available templates (built-ins and your own).
 
-    league: e.g. "EPL", "NBA" (optional).
-    sport:  e.g. "soccer" (optional).
-    status: "upcoming" | "live" | "final" (optional).
-    limit:  number of events to return, 1-100 (default 25).
-    Costs 1 credit.
+    Free — no credits charged.
+    Returns {"count", "data": [{"template", "name", "width", "height", "variables"}, ...]},
+    or an {"error": ...} dict.
     """
-    if status is not None and status not in STATUSES:
-        return {"error": "invalid_argument", "detail": "status must be one of " + ", ".join(STATUSES) + "."}
-    return _get("/v1/events", {"league": league, "sport": sport, "status": status, "limit": limit})
+    return _get("/v1/templates")
 
 
-def get_books():
+def create_template(name, html, width, height, variables=None):
     """
-    The sportsbooks currently covered. Costs 1 credit.
+    Create a reusable HTML/CSS template with {{variables}} and Jinja logic.
+
+    name:      human-readable template name (required).
+    html:      the HTML/CSS template body (required).
+    width:     canvas width in px (required).
+    height:    canvas height in px (required).
+    variables: list of variable names the template exposes (optional).
+    Free — no credits charged. Returns the created template with its "tpl_..." id,
+    or an {"error": ...} dict.
     """
-    return _get("/v1/books")
+    if not name or not html:
+        return {"error": "invalid_argument", "detail": "name and html are required."}
+    body = {"name": name, "html": html, "width": width, "height": height}
+    if variables is not None:
+        body["variables"] = variables
+    return _post("/v1/templates", body)
+
+
+def embed_url(template, modifications=None, format="png"):
+    """
+    Sign a GET render URL suitable for a <meta property="og:image"> tag.
+
+    template:      template id or built-in name (required).
+    modifications: dict of {{variable}} -> value fills (optional).
+    format:        "png" | "jpeg" | "webp" | "pdf" (default "png").
+    Free — no credits charged for signing. Returns {"url", ...}, or an {"error": ...} dict.
+    """
+    if not template:
+        return {"error": "invalid_argument", "detail": "template is required."}
+    if format is not None and format not in FORMATS:
+        return {"error": "invalid_argument", "detail": "format must be one of " + ", ".join(FORMATS) + "."}
+    body = {"template": template, "modifications": modifications or {}, "format": format}
+    return _post("/v1/embed-url", body)
