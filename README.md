@@ -8,6 +8,15 @@ Free to start — [grab a key](https://propzapi.com/app) (50-image trial, no car
 
 Pure Python standard library. No dependencies. MIT-0 licensed.
 
+## Guides
+
+Deep-dive walkthroughs on the propzapi blog:
+
+- [HTML to Image API: turn HTML and CSS into a PNG in one call](https://propzapi.com/blog/html-to-image-api/)
+- [Open Graph Image API: generate dynamic og:image URLs in one call](https://propzapi.com/blog/open-graph-image-api/)
+- [HTML to PDF API: convert HTML to PDF in one call](https://propzapi.com/blog/html-to-pdf-api/)
+- [Bannerbear alternative: a pay-as-you-go image generation API](https://propzapi.com/blog/bannerbear-alternative/)
+
 ## Install
 
 ```bash
