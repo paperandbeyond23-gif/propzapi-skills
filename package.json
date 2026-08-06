@@ -1,6 +1,6 @@
 {
   "name": "propzapi-skills",
-  "version": "0.2.0",
+  "version": "1.0.1",
   "description": "Agent skills for template-based image generation and webpage screenshots via propzapi.com",
   "homepage": "https://github.com/paperandbeyond23-gif/propzapi-skills",
   "repository": {
