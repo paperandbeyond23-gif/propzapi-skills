@@ -1,14 +1,28 @@
 name: keep-warm
-# Pings the propzapi API health endpoint every 5 minutes so the Render free-tier
-# service never spins down. A cold start makes RapidAPI display a ~22s latency,
-# which tanks both ranking and conversion. Public repo => free unlimited minutes.
+# Best-effort warm-up for the Render free-tier API so it doesn't cold-start.
+# NOTE: GitHub's scheduler throttles */5 crons heavily, so this is NOT a reliable
+# uptime guarantee. For real reliability use an external monitor (UptimeRobot) or a
+# paid Render instance. This job only sends traffic; it never fails on a slow/cold
+# response (a single slow ping is the wake-up working, not an error worth emailing).
 on:
   schedule:
-    - cron: '*/5 * * * *'
+    - cron: '*/10 * * * *'
   workflow_dispatch:
+concurrency:
+  group: keep-warm
+  cancel-in-progress: false
 jobs:
   ping:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
-      - name: Ping /health to keep the API warm
-        run: curl -sS -o /dev/null -w "health %{http_code} in %{time_total}s\n" --max-time 90 https://api.propzapi.com/health
+      - name: Ping /health (tolerant of cold starts)
+        run: |
+          for i in 1 2 3; do
+            code=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 120 https://api.propzapi.com/health || echo "000")
+            echo "attempt $i: health $code"
+            [ "$code" = "200" ] && exit 0
+            sleep 20
+          done
+          echo "not 200 after 3 tries; API was likely cold-starting. Traffic was sent, which wakes it. Not failing the run."
+          exit 0
