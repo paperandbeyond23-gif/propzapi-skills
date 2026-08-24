@@ -1,7 +1,7 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.paperandbeyond23-gif/propzapi",
-  "description": "Render-and-verify API for agents: turn HTML/CSS into an image or PDF, screenshot any URL, and confirm the exact text rendered.",
+  "description": "Render-and-verify API: HTML/CSS to image or PDF, screenshot any URL, confirm the text rendered.",
   "version": "0.3.1",
   "websiteUrl": "https://propzapi.com",
   "repository": {
